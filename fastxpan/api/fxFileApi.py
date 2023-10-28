@@ -13,7 +13,7 @@ from xpan.api import fileinfo_api, multimediafile_api, filemanager_api, fileuplo
 
 from ..common.configuration import FxConfiguration
 from ..common.structs import FxFile, FxFileMeta, FxImage
-from ..common.error_messages import fxerr
+from ..common.errors import fxerr
 
 
 class FxFileApi:
@@ -447,12 +447,12 @@ class FxFileApi:
                                                       tuple[Literal[False], str]):
         """通过dlink列表获取文件fs_id
 
-                Args:
-                    target_dlink (str): 目标dlink
+        Args:
+            target_dlink (str): 目标dlink
 
-                Returns:
-                    (True, list[str]) | (False, str): (是否成功, 文件的fs_id或者错误信息)
-                """
+        Returns:
+            (True, list[str]) | (False, str): (是否成功, 文件的fs_id或者错误信息)
+        """
         if not target_dlink.__str__().startswith("https://d.pcs.baidu.com/file/"):
             return False, "无效的dlink"
         query = parse.parse_qs(parse.urlparse(target_dlink).query)
@@ -460,20 +460,28 @@ class FxFileApi:
             return True, int(query["fid"][0][query["fid"][0].rindex("-") + 1:])
         return False, "无效的dlink"
 
-    def list_images_by_path(self, target_dir_path):
+    def list_images_by_path(self, target_dir_path: str) -> tuple[str | None, list[FxImage] | None]:
+        """通过目录路径列出目录中的所有图片
+
+        Args:
+            target_dir_path (int): 目录路径.
+
+        Returns:
+            tuple[str | None, list[FxImage] | None]: 错误信息以及图片详情列表
+        """
         if target_dir_path == "/":
-            return False, "文件路径不能为根目录"
+            return "文件路径不能为根目录", None
         if not target_dir_path.startswith("/"):
-            return False, "无效的路径"
+            return "无效的路径", None
         try:
             with xpan.ApiClient() as api_client:
                 api = xpan.api.fileinfo_api.FileinfoApi(api_client)
                 res = api.xpanfileimagelist(self.access_token, parent_path=target_dir_path, web="1")
                 if res["errno"]:
-                    return False, fxerr[res["errno"]]
-                return True, [FxImage(f) for f in res["info"]]
+                    return fxerr[res["errno"]], None
+                return None, [FxImage(f) for f in res["info"]]
         except ApiException as e:
-            return False, e.body
+            return e.body, None
 
     def get_file_name_by_fsid(self, fs_id: int) -> tuple[bool, str]:
         """通过fs_id获取文件或目录的名称
